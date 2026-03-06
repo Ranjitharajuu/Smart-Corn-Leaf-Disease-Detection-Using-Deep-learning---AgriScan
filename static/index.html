@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Corn Leaf Disease Detection</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
+    body{background:linear-gradient(135deg,#c8e6c9,#a5d6a7,#81c784);background-size:300% 300%;animation:gradientShift 10s ease infinite;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding-top:40px;}
+    @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    .container{background:#ffffffb8;backdrop-filter:blur(15px);padding:30px 40px;border-radius:20px;box-shadow:0 8px 25px rgba(0,0,0,0.2);width:400px;animation:fadeIn 1s ease-in-out;margin-bottom:20px;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+    h2{font-size:26px;font-weight:700;background:linear-gradient(90deg,#43a047,#2e7d32);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:25px;text-align:center;}
+    input[type="text"],input[type="password"],input[type="tel"],input[type="file"]{width:100%;padding:12px;margin:10px 0;border-radius:8px;border:1px solid #ccc;outline:none;transition:0.3s;}
+    input:focus{border-color:#4caf50;box-shadow:0 0 10px #81c784;}
+    .password-container{position:relative;}
+    .toggle-password{position:absolute;right:12px;top:35%;cursor:pointer;color:#666;}
+    button{width:100%;background:linear-gradient(90deg,#43a047,#2e7d32);color:#fff;padding:12px;border:none;border-radius:8px;margin-top:10px;font-weight:600;cursor:pointer;transition:all 0.3s ease;}
+    button:hover{transform:scale(1.05);box-shadow:0 5px 15px rgba(76,175,80,0.4);}
+    .logout-btn{background:#e53935;margin-top:20px;}
+    .link{margin-top:10px;color:#2e7d32;cursor:pointer;display:inline-block;font-weight:500;}
+    .link:hover{text-decoration:underline;}
+    #uploadSection{display:none;text-align:center;width:700px;}
+    .upload-box{border:2px dashed #81c784;padding:30px;border-radius:12px;background:#f1f8e9;transition:transform 0.3s ease,box-shadow 0.3s ease;}
+    .upload-box:hover{transform:scale(1.03);box-shadow:0 6px 20px rgba(76,175,80,0.3);}
+    .result{background:#e8f5e9;padding:15px;margin-top:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);display:none;text-align:left;}
+    table{width:100%;border-collapse:collapse;margin-top:20px;display:none;}
+    th,td{border:1px solid #c8e6c9;padding:8px;text-align:center;}
+    th{background:#a5d6a7;color:#1b5e20;}
+    tr:nth-child(even){background:#f1f8e9;}
+    #feedback-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;}
+    #feedback-modal .modal-content{background:white;padding:20px;border-radius:10px;width:300px;text-align:center;}
+  </style>
+</head>
+<body>
+
+  <div class="container" id="authContainer">
+    <h2>Smart Corn Leaf Disease Detection</h2>
+
+    <div id="loginForm">
+      <input type="tel" id="loginPhone" placeholder="Phone Number" required>
+      <div class="password-container">
+        <input type="password" id="loginPass" placeholder="Password" required>
+        <span class="toggle-password" onclick="togglePassword('loginPass', this)">👁</span>
+      </div>
+      <button onclick="login()">Login</button>
+      <div class="link" onclick="showRegister()">Create new account</div>
+    </div>
+
+    <div id="registerForm" style="display:none;">
+      <input type="tel" id="regPhone" placeholder="Phone Number" required>
+      <div class="password-container">
+        <input type="password" id="regPass" placeholder="Password" required>
+        <span class="toggle-password" onclick="togglePassword('regPass', this)">👁</span>
+      </div>
+      <button onclick="register()">Register</button>
+      <div class="link" onclick="showLogin()">Already have an account?</div>
+    </div>
+  </div>
+
+  <div class="container" id="uploadSection">
+    <h2>🌽 Upload Corn Leaf Image</h2>
+    <div class="upload-box">
+      <input type="file" id="fileInput" accept="image/*">
+      <button onclick="predict()">Upload & Predict</button>
+    </div>
+
+    <div id="result" class="result"></div>
+
+    <table id="historyTable">
+      <thead>
+        <tr>
+          <th>Date/Time</th>
+          <th>Disease</th>
+          <th>Confidence</th>
+          <th>Image</th>
+          <th>Feedback</th>
+          <th>Feedback Date</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button id="logoutBtn" class="logout-btn">Logout</button>
+  </div>
+
+  <div id="feedback-modal">
+    <div class="modal-content">
+      <h3>Give Feedback</h3>
+      <p id="feedback-record-info"></p>
+      <label><input type="radio" name="is_correct" value="true" checked> Correct</label>
+      <label><input type="radio" name="is_correct" value="false"> Incorrect</label>
+      <br><br>
+      <button id="submit-feedback-btn">Submit</button>
+      <button onclick="closeFeedbackModal()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000";
+
+    function togglePassword(id, element) {
+      const input = document.getElementById(id);
+      if (input.type === "password") {input.type="text";element.textContent="🙈";}
+      else {input.type="password";element.textContent="👁";}
+    }
+
+    function showRegister(){document.getElementById('loginForm').style.display='none';document.getElementById('registerForm').style.display='block';}
+    function showLogin(){document.getElementById('registerForm').style.display='none';document.getElementById('loginForm').style.display='block';}
+
+    function register(){
+      const phone=document.getElementById('regPhone').value.trim();
+      const pass=document.getElementById('regPass').value.trim();
+      if(!phone||!pass){alert('Please fill all fields');return;}
+      fetch(`${API_URL}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,password:pass})})
+      .then(res=>res.json()).then(data=>{alert(data.message||data.detail);showLogin();});
+    }
+
+    function login(){
+      const phone=document.getElementById('loginPhone').value.trim();
+      const pass=document.getElementById('loginPass').value.trim();
+      if(!phone||!pass){alert('Please fill all fields');return;}
+      fetch(`${API_URL}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,password:pass})})
+      .then(res=>res.json()).then(data=>{
+        if(data.access_token){localStorage.setItem('token',data.access_token);document.getElementById('authContainer').style.display='none';document.getElementById('uploadSection').style.display='block';fetchHistory();}
+        else alert(data.detail||'Invalid credentials');
+      });
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click',()=>{
+      localStorage.removeItem('token');
+      document.getElementById('uploadSection').style.display='none';
+      document.getElementById('authContainer').style.display='block';
+    });
+
+    function predict(){
+      const fileInput=document.getElementById('fileInput');
+      const resultDiv=document.getElementById('result');
+      if(!fileInput.files.length){alert('Please select an image');return;}
+      const file=fileInput.files[0];
+      const formData=new FormData();
+      formData.append('file',file);
+      const token=localStorage.getItem('token');
+      fetch(`${API_URL}/predict`,{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:formData})
+      .then(res=>res.json()).then(data=>{
+        if(data.disease){
+          resultDiv.style.display='block';
+          resultDiv.innerHTML=`<strong>${data.image_url}</strong><br>Disease:<b>${data.disease}</b><br>Confidence:${(data.confidence*100).toFixed(2)}%`;
+          fetchHistory();
+        }else alert(data.detail);
+      });
+    }
+
+    function fetchHistory(){
+      const token=localStorage.getItem('token');
+      fetch(`${API_URL}/history`,{headers:{'Authorization':`Bearer ${token}`}})
+      .then(res=>res.json()).then(data=>{
+        const table=document.getElementById('historyTable');const tbody=table.querySelector('tbody');tbody.innerHTML='';
+        if(data.length>0){table.style.display='table';
+          data.forEach(rec=>{
+            const tr=document.createElement('tr');
+            const localTime=new Date(rec.created_at+"Z").toLocaleString();
+            tr.innerHTML=`
+              <td>${localTime}</td>
+              <td>${rec.result}</td>
+              <td>${(rec.confidence*100).toFixed(2)}%</td>
+              <td><img src="${API_URL}/image/${rec.filename}" width="50"></td>
+              <td>${rec.feedback===null?`<button onclick="openFeedbackModal('${rec.id}','${rec.filename}','${rec.result}')">Give Feedback</button>`:(rec.feedback==='correct'?'Correct':'Incorrect')}</td>
+              <td>${rec.feedback_at?new Date(rec.feedback_at+"Z").toLocaleString():'-'}</td>`;
+            tbody.appendChild(tr);
+          });
+        }
+      });
+    }
+
+    let currentFeedbackId=null;
+    function openFeedbackModal(id,filename,result){
+      currentFeedbackId=id;
+      document.getElementById('feedback-record-info').textContent=`${filename} → ${result}`;
+      document.getElementById('feedback-modal').style.display='flex';
+    }
+    function closeFeedbackModal(){document.getElementById('feedback-modal').style.display='none';}
+
+    document.getElementById('submit-feedback-btn').addEventListener('click',()=>{
+      const is_correct=document.querySelector('input[name="is_correct"]:checked').value==='true';
+      const token=localStorage.getItem('token');
+      fetch(`${API_URL}/feedback/${currentFeedbackId}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+        body:JSON.stringify({is_correct})
+      }).then(res=>res.json()).then(data=>{
+        alert(data.message||data.detail);
+        closeFeedbackModal();fetchHistory();
+      });
+    });
+
+    window.addEventListener('load',()=>{
+      const token=localStorage.getItem('token');
+      if(token){document.getElementById('authContainer').style.display='none';document.getElementById('uploadSection').style.display='block';fetchHistory();}
+    });
+  </script>
+</body>
+</html>
